@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>鼻子顶小球小游戏</title>
+  <title>Nose Ball Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
@@ -38,7 +38,6 @@
       display: block;
     }
 
-    /* 隐藏真实 video，只在 canvas 上画 */
     #webcam {
       display: none;
     }
@@ -87,8 +86,8 @@
   </style>
 </head>
 <body>
-  <h1>鼻子顶小球小游戏（1分钟）</h1>
-  <div id="statusText">状态：正在加载人脸识别模型…</div>
+  <h1>Nose Ball Game (1 Minute)</h1>
+  <div id="statusText">Status: Loading face detection model…</div>
 
   <div id="gameContainer">
     <video id="webcam" autoplay playsinline></video>
@@ -96,22 +95,20 @@
   </div>
 
   <div id="uiBar">
-    <button id="startButton" disabled>开始游戏</button>
-    <span class="label">时间：<span id="timeLabel">60.0</span>s</span>
-    <span class="label">命中球数：<span id="hitLabel">0</span></span>
-    <span class="label">得分：<span id="scoreLabel">0</span></span>
+    <button id="startButton" disabled>Start Game</button>
+    <span class="label">Time: <span id="timeLabel">60.0</span>s</span>
+    <span class="label">Hits: <span id="hitLabel">0</span></span>
+    <span class="label">Score: <span id="scoreLabel">0</span></span>
   </div>
 
   <div id="finalMessage"></div>
 
-  <!-- 使用 ES Module 直接从 CDN 引入 MediaPipe Tasks Vision -->
   <script type="module">
     import {
       FaceDetector,
       FilesetResolver
     } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
 
-    // --- DOM 元素 ---
     const video = document.getElementById("webcam");
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
@@ -123,17 +120,14 @@
     const statusText = document.getElementById("statusText");
     const finalMessage = document.getElementById("finalMessage");
 
-    // --- MediaPipe 相关 ---
     let faceDetector = null;
     let runningMode = "VIDEO";
     let lastVideoTime = -1;
 
-    // 鼻尖坐标（canvas 坐标系里的像素位置，已镜像）
     let noseX = null;
     let noseY = null;
 
-    // --- 游戏状态 ---
-    const GAME_DURATION_MS = 60 * 1000; // 1分钟
+    const GAME_DURATION_MS = 60 * 1000;
     let gameRunning = false;
     let gameStartTime = 0;
     let loopStarted = false;
@@ -144,14 +138,13 @@
     let lastFrameTime = 0;
     let spawnAccumulator = 0;
 
-    const SPAWN_INTERVAL_SEC = 1.5; // 每 1.5 秒大约生成一个球
-    const BALL_LIFETIME_MS = 7000;  // 小球最多存在 7 秒
-    const BALL_MIN_SPEED = 40;      // 像素/秒
+    const SPAWN_INTERVAL_SEC = 1.5;
+    const BALL_LIFETIME_MS = 7000;
+    const BALL_MIN_SPEED = 40;
     const BALL_MAX_SPEED = 80;
     const BALL_RADIUS = 18;
     const NOSE_RADIUS = 12;
 
-    // 初始化：加载 MediaPipe FaceDetector
     async function initFaceDetector() {
       try {
         const vision = await FilesetResolver.forVisionTasks(
@@ -167,55 +160,45 @@
           runningMode: runningMode
         });
 
-        statusText.textContent = "状态：模型加载完成，可以开始游戏。";
+        statusText.textContent = "Status: Model loaded. Ready to start.";
         startButton.disabled = false;
       } catch (err) {
         console.error(err);
-        statusText.textContent = "状态：模型加载失败，请检查网络或稍后重试。";
+        statusText.textContent = "Status: Failed to load model.";
       }
     }
 
-    // 启动摄像头
     async function startWebcamIfNeeded() {
       if (video.srcObject) return;
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        alert("当前浏览器不支持摄像头访问。");
-        return;
-      }
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
 
-        // 等待视频元数据加载完毕，获取真实分辨率
         await new Promise(resolve => {
           if (video.readyState >= 1) return resolve();
           video.onloadedmetadata = () => resolve();
         });
 
-        // 把 canvas 尺寸设置成和视频一样
         const w = video.videoWidth || 640;
         const h = video.videoHeight || 480;
         canvas.width = w;
         canvas.height = h;
       } catch (err) {
         console.error(err);
-        alert("无法访问摄像头：" + err.message);
+        alert("Cannot access webcam: " + err.message);
       }
     }
 
-    // 开始新一局游戏
     async function startGame() {
       if (!faceDetector) {
-        alert("人脸检测模型还在加载，请稍等。");
+        alert("Face detector is not ready yet.");
         return;
       }
 
       await startWebcamIfNeeded();
       if (!video.srcObject) return;
 
-      // 重置游戏状态
       gameRunning = true;
       gameStartTime = performance.now();
       lastFrameTime = gameStartTime;
@@ -231,29 +214,20 @@
       scoreLabel.textContent = score.toString();
       timeLabel.textContent = "60.0";
 
-      // 只启动一次主循环
       if (!loopStarted) {
         loopStarted = true;
         requestAnimationFrame(gameLoop);
       }
     }
 
-    startButton.addEventListener("click", () => {
-      startGame();
-    });
+    startButton.addEventListener("click", () => startGame());
 
-    // 主循环：更新 + 画图 + 人脸检测
     async function gameLoop(timestamp) {
       const now = performance.now();
 
-      // 计算 dt（秒）
-      let dt = 0;
-      if (lastFrameTime) {
-        dt = (timestamp - lastFrameTime) / 1000;
-      }
+      let dt = (timestamp - lastFrameTime) / 1000;
       lastFrameTime = timestamp;
 
-      // 更新游戏状态
       if (gameRunning) {
         const elapsed = now - gameStartTime;
         const remaining = Math.max(0, GAME_DURATION_MS - elapsed);
@@ -262,37 +236,30 @@
         if (remaining <= 0) {
           gameRunning = false;
           finalMessage.textContent =
-            `时间到！你一共命中了 ${hits} 个小球，得分 ${score} 分。`;
+            `Time's up! You hit ${hits} balls. Score: ${score}.`;
         } else {
           updateBalls(dt, now);
           checkCollisions();
         }
       }
 
-      // 做一次人脸检测（只在视频时间前进时）
       await updateNoseFromFaceDetector();
-
-      // 绘制画面（视频 + 小球 + 鼻子 + UI）
       drawFrame();
 
-      // 下一帧
       requestAnimationFrame(gameLoop);
     }
 
     async function updateNoseFromFaceDetector() {
-      if (!faceDetector || !video || video.readyState < 2) return;
-
+      if (!faceDetector || video.readyState < 2) return;
       if (video.currentTime === lastVideoTime) return;
       lastVideoTime = video.currentTime;
 
-      // 确保运行模式为 VIDEO
       if (runningMode === "IMAGE") {
         runningMode = "VIDEO";
         await faceDetector.setOptions({ runningMode: "VIDEO" });
       }
 
-      const startTimeMs = performance.now();
-      const result = faceDetector.detectForVideo(video, startTimeMs);
+      const result = faceDetector.detectForVideo(video, performance.now());
       const detections = result.detections || [];
       if (detections.length === 0) {
         noseX = null;
@@ -300,7 +267,6 @@
         return;
       }
 
-      // 只取第一个人脸
       const det = detections[0];
       if (!det.keypoints || det.keypoints.length < 3) {
         noseX = null;
@@ -308,24 +274,19 @@
         return;
       }
 
-      // keypoints 顺序包含鼻尖（nose tip）:contentReference[oaicite:1]{index=1}  
-      const nose = det.keypoints[2]; // 按旧文档：右眼、左眼、鼻尖、嘴、右耳、左耳
-
+      const nose = det.keypoints[2];
       const w = canvas.width;
       const h = canvas.height;
 
-      // 画面是镜像的，所以 X 要左右反转
       noseX = w - nose.x * w;
       noseY = nose.y * h;
     }
 
-    // 更新小球位置 & 生成/删除
     function updateBalls(dt, nowMs) {
       spawnAccumulator += dt;
-      const spawnInterval = SPAWN_INTERVAL_SEC;
 
-      while (spawnAccumulator >= spawnInterval) {
-        spawnAccumulator -= spawnInterval;
+      while (spawnAccumulator >= SPAWN_INTERVAL_SEC) {
+        spawnAccumulator -= SPAWN_INTERVAL_SEC;
         spawnBall(nowMs);
       }
 
@@ -336,26 +297,16 @@
         ball.x += ball.vx * dt;
         ball.y += ball.vy * dt;
 
-        // 碰到边界就反弹
-        if (ball.x - ball.r < 0 && ball.vx < 0) {
-          ball.x = ball.r;
+        if (ball.x - ball.r < 0 && ball.vx < 0 ||
+            ball.x + ball.r > w && ball.vx > 0)
           ball.vx *= -1;
-        } else if (ball.x + ball.r > w && ball.vx > 0) {
-          ball.x = w - ball.r;
-          ball.vx *= -1;
-        }
 
-        if (ball.y - ball.r < 0 && ball.vy < 0) {
-          ball.y = ball.r;
+        if (ball.y - ball.r < 0 && ball.vy < 0 ||
+            ball.y + ball.r > h && ball.vy > 0)
           ball.vy *= -1;
-        } else if (ball.y + ball.r > h && ball.vy > 0) {
-          ball.y = h - ball.r;
-          ball.vy *= -1;
-        }
       }
 
-      // 删除超时的小球
-      balls = balls.filter(ball => nowMs - ball.spawnTime <= BALL_LIFETIME_MS);
+      balls = balls.filter(b => nowMs - b.spawnTime <= BALL_LIFETIME_MS);
     }
 
     function spawnBall(nowMs) {
@@ -366,24 +317,19 @@
       const x = r + Math.random() * (w - 2 * r);
       const y = r + Math.random() * (h - 2 * r);
 
-      const speed =
-        BALL_MIN_SPEED + Math.random() * (BALL_MAX_SPEED - BALL_MIN_SPEED);
+      const speed = BALL_MIN_SPEED + Math.random() * (BALL_MAX_SPEED - BALL_MIN_SPEED);
       const angle = Math.random() * Math.PI * 2;
-
-      const vx = Math.cos(angle) * speed;
-      const vy = Math.sin(angle) * speed;
 
       balls.push({
         x,
         y,
         r,
-        vx,
-        vy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
         spawnTime: nowMs
       });
     }
 
-    // 鼻子碰撞检测
     function checkCollisions() {
       if (noseX == null || noseY == null) return;
 
@@ -391,52 +337,42 @@
       for (const ball of balls) {
         const dx = ball.x - noseX;
         const dy = ball.y - noseY;
-        const distSq = dx * dx + dy * dy;
-        const minDist = ball.r + NOSE_RADIUS;
-        if (distSq <= minDist * minDist) {
-          // 命中：加分 + 不保留这个球
-          hits += 1;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist <= ball.r + NOSE_RADIUS) {
+          hits++;
           score = hits * 10;
-          hitLabel.textContent = hits.toString();
-          scoreLabel.textContent = score.toString();
-        } else {
-          newBalls.push(ball);
-        }
+          hitLabel.textContent = hits;
+          scoreLabel.textContent = score;
+        } else newBalls.push(ball);
       }
       balls = newBalls;
     }
 
-    // 画一帧
     function drawFrame() {
       const w = canvas.width;
       const h = canvas.height;
+
       ctx.clearRect(0, 0, w, h);
 
-      // 画镜像的视频
-      if (video && video.readyState >= 2) {
+      if (video.readyState >= 2) {
         ctx.save();
         ctx.translate(w, 0);
         ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
-      } else {
-        // 没有视频时的背景
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, w, h);
       }
 
-      // 画小球
       for (const ball of balls) {
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
         ctx.fillStyle = "rgba(80,180,255,0.9)";
         ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.9)";
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "rgba(255,255,255,0.8)";
         ctx.stroke();
       }
 
-      // 画鼻子位置
       if (noseX != null && noseY != null) {
         ctx.beginPath();
         ctx.arc(noseX, noseY, NOSE_RADIUS, 0, Math.PI * 2);
@@ -450,16 +386,16 @@
         ctx.fill();
       }
 
-      // 画顶部简单 HUD（再画一遍时间和分数以便录屏）
       ctx.fillStyle = "rgba(0,0,0,0.4)";
       ctx.fillRect(0, 0, w, 30);
       ctx.fillStyle = "#ffffff";
       ctx.font = "14px system-ui";
       ctx.textBaseline = "middle";
-      const remaining = gameRunning
-        ? Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime)) /
-          1000
-        : 0;
+
+      const remaining = gameRunning ?
+        Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime)) / 1000 :
+        0;
+
       ctx.fillText(
         `Time: ${remaining.toFixed(1)}s   Hits: ${hits}   Score: ${score}`,
         10,
@@ -467,7 +403,6 @@
       );
     }
 
-    // 页面加载后立即初始化人脸检测
     initFaceDetector();
   </script>
 </body>
