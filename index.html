@@ -235,6 +235,7 @@
 
         if (remaining <= 0) {
           gameRunning = false;
+          stopWebcam();
           finalMessage.textContent =
             `Time's up! You hit ${hits} balls. Score: ${score}.`;
         } else {
@@ -281,7 +282,12 @@
       noseX = w - nose.x * w;
       noseY = nose.y * h;
     }
-
+    function stopWebcam(){
+      if (video.srcObject){
+        video.scrObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+    }
     function updateBalls(dt, nowMs) {
       spawnAccumulator += dt;
 
@@ -407,3 +413,4 @@
   </script>
 </body>
 </html>
+
